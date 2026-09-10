@@ -1,0 +1,83 @@
+name: Build Rox Follow APK
+
+on:
+  workflow_dispatch:      # "Run workflow" button se manually chalayein
+  push:
+    branches: [ main ]    # main branch par push karte hi auto-build ho jayega
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install web app dependencies
+        run: npm install
+
+      - name: Build web app (React -> dist/)
+        run: npm run build
+
+      - name: Install Capacitor
+        run: |
+          npm install @capacitor/core @capacitor/android
+          npm install -D @capacitor/cli
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Copy Unity Ads Capacitor plugin into project
+        run: |
+          mkdir -p android/app/src/main/java/com/roxfollow/app
+          cp native-integration/android-plugin/java/com/roxfollow/app/UnityRewardedAdsPlugin.kt \
+             android/app/src/main/java/com/roxfollow/app/UnityRewardedAdsPlugin.kt
+
+      - name: Register plugin in MainActivity
+        run: |
+          MAIN_ACTIVITY=$(find android/app/src/main/java -name "MainActivity.java")
+          sed -i '/public void onCreate(Bundle savedInstanceState) {/a\    registerPlugin(UnityRewardedAdsPlugin.class);' "$MAIN_ACTIVITY"
+
+      - name: Add Unity Ads SDK dependency
+        run: |
+          sed -i '/dependencies {/a\    implementation "com.unity3d.ads:unity-ads:4.12.2"' android/app/build.gradle
+
+      - name: Ensure network permissions are present
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' "$MANIFEST" || \
+            sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
+          grep -q 'android.permission.ACCESS_NETWORK_STATE' "$MANIFEST" || \
+            sed -i '/<manifest /a\    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' "$MANIFEST"
+          cat "$MANIFEST"
+
+      - name: Print applicationId (cross-check this against Unity Dashboard > Apps > Android package name)
+        run: grep applicationId android/app/build.gradle
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build Debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rox-follow-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

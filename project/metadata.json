@@ -1,0 +1,8 @@
+{
+  "name": "Remix InstaBoost Engagement Rewards",
+  "description": "Android application for Instagram engagement rewards with Google Authentication, M3 Dashboard, Rewarded Ads Coins system, Orders management, and Settings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
